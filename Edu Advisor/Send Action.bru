@@ -1,0 +1,19 @@
+meta {
+  name: Send Action
+  type: http
+  seq: 2
+}
+
+post {
+  url: http://localhost:0.0.31.64/conversation/1672990d-34aa-45ee-abeb-45a22a49f23/action
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {"next_action":"super",{"conversation_id":"1672990d-34aa-45ee-abeb-45a22a49f23b","seed_questions":{"questions":["What is your name?","How can I help you today?"]},"question":null,"question_refinement":null,"query":null,"some_data":null,"prompt":null,"answer":null,"messages":[{"sender":"system","content":"Seeded initial questions.","timestamp":"2024-08-14T12:14:23.806936"}],"last_updated":"2024-08-14T12:14:23.806891"}}
+}
