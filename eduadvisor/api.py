@@ -100,16 +100,18 @@ async def stream_conversation(conversation_id: str):
 
 
 @app.post("/conversation/{conversation_id}", status_code=201)
-async def handle_action(conversation_id: str, question: edu_model.Question):
+async def handle_action(conversation_id: str, questions: edu_model.Questions):
 
     state = await get_state_json(conversation_id)
-    if state == None:
+    if state is None:
         raise HTTPException(
             status_code=404, detail=f"Conversaton with {conversation_id} does not exist"
         )
-    state.question = question
+
+    state = state.model_copy(update={"questions": questions}, deep=True)
+    model_json = state.model_dump_json()
     result = edu_worker.process_action.delay(
-        state.model_dump_json(), None, edu_model.StateAction.COORDINATE
+        model_json, None, edu_model.StateAction.COORDINATE
     )
 
     return {"status": "Action is being processed", "task_id": result.id}

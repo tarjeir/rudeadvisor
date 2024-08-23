@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional
 from datetime import datetime
 from uuid import uuid4
@@ -18,46 +18,61 @@ class MessageType(str, Enum):
     REFINED_QUESTION = "refined queston"
 
 
-class Message(BaseModel):
+class EduModel(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+
+class Message(EduModel):
     message_type: MessageType
     state_action: StateAction
     content: str
     timestamp: datetime = Field(default_factory=lambda: datetime.now())
 
 
-class SeedQuestions(BaseModel):
+class SeedQuestions(EduModel):
     questions: List[str] = Field(default_factory=list)
 
 
-class Question(BaseModel):
+class Question(EduModel):
     question_text: str
+    priority: int
 
 
-class RefinedQuestions(BaseModel):
+class QuestionsScore(EduModel):
+    score: int
+    score_comment: str
+
+
+class Questions(EduModel):
+    questions: list[Question]
+    questions_score: QuestionsScore | None
+
+
+class RefinedQuestions(EduModel):
     refined_questions: list[str]
     comment_to_the_original_question: str
 
 
-class Query(BaseModel):
+class Query(EduModel):
     query_text: str
 
 
-class WebSearchResult(BaseModel):
+class WebSearchResult(EduModel):
     data: str
 
 
-class Prompt(BaseModel):
+class Prompt(EduModel):
     prompt_text: str
 
 
-class Answer(BaseModel):
+class Answer(EduModel):
     answer_text: str
 
 
-class ConversationState(BaseModel):
+class ConversationState(EduModel):
     conversation_id: str = Field(default_factory=lambda: str(uuid4()))
     seed_questions: SeedQuestions = Field(default_factory=SeedQuestions)
-    question: Optional[Question] = None
+    questions: Optional[Questions] = None
     refined_questions: Optional[RefinedQuestions] = None
     query: Optional[Query] = None
     some_data: Optional[WebSearchResult] = None
