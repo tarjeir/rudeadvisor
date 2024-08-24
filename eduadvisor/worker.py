@@ -2,7 +2,6 @@ from collections.abc import Callable
 from celery import Celery
 from datetime import datetime
 from langchain_community.tools import DuckDuckGoSearchResults
-import ast
 from pydantic import ValidationError
 import re
 import openai
@@ -68,18 +67,16 @@ def process_action(
     )
 
 
-def state_process(
+def coordination(
     state: ConversationState,
     previous_action: StateAction | None,
-    action: StateAction,
     send_state_to_user: Callable[[ConversationState, StateAction, str], None],
 ) -> ConversationState:
-    match (previous_action, action):
-        case (None, StateAction.COORDINATE):
-
+    match previous_action:
+        case None:
             send_process_message_to_user(
                 state,
-                action,
+                StateAction.COORDINATE,
                 f"Thanks ... ",
             )
             return state_process(
@@ -88,16 +85,18 @@ def state_process(
                 StateAction.SCORE_QUERY,
                 send_state_to_user,
             )
-        case (StateAction.SCORE_QUERY, StateAction.COORDINATE):
+        case StateAction.SCORE_QUERY:
             if not state.questions:
-                send_process_message_to_user(state, action, "Error state")
+                send_process_message_to_user(
+                    state, StateAction.COORDINATE, "Error state"
+                )
                 return state
 
             quality_score = state.questions.questions_score
             if quality_score and quality_score.score < 80:
                 send_process_message_to_user(
                     state,
-                    action,
+                    StateAction.COORDINATE,
                     quality_score.score_comment
                     + f", I scored it {quality_score.score}",
                 )
@@ -111,7 +110,7 @@ def state_process(
 
                 send_process_message_to_user(
                     state,
-                    action,
+                    StateAction.COORDINATE,
                     f"The quality is good. We will continue creating prompts",
                 )
                 return state_process(
@@ -122,40 +121,12 @@ def state_process(
                 )
             else:
                 send_process_message_to_user(
-                    state, action, "Failed to score the query. Please retry..."
+                    state,
+                    StateAction.COORDINATE,
+                    "Failed to score the query. Please retry...",
                 )
                 return state
-
-        case (StateAction.COORDINATE, StateAction.SCORE_QUERY):
-
-            if not state.questions:
-                send_process_message_to_user(state, action, "Error state")
-                return state
-
-            send_process_message_to_user(
-                state, action, "Asserting the quality of your questions"
-            )
-            quality_score = quality_check_your_questions(state.questions)
-            state = state.model_copy(
-                update={
-                    "questions": state.questions.model_copy(
-                        update={"questions_score": quality_score}, deep=True
-                    )
-                },
-                deep=True,
-            )
-
-            return state_process(
-                state,
-                StateAction.SCORE_QUERY,
-                StateAction.COORDINATE,
-                send_state_to_user,
-            )
-
-        case (StateAction.CHALLENGE, StateAction.COORDINATE):
-            # TODO ADD SOME LOGIC IF THE CHALLENGE IS NOT THAT GOOD
-            # Append result to the conversation
-            # TODO MAKE THIS IMMUTABLE
+        case StateAction.CHALLENGE:
             if state.refined_questions:
                 state = state.model_copy(
                     update={
@@ -181,14 +152,62 @@ def state_process(
                 )
             return state
 
-        case (StateAction.COORDINATE, StateAction.CHALLENGE):
-            send_process_message_to_user(state, action, "Trying to challenge you..")
+    return state
+
+
+def score_query(
+    state: ConversationState,
+    previous_action: StateAction | None,
+    send_state_to_user: Callable[[ConversationState, StateAction, str], None],
+) -> ConversationState:
+    match previous_action:
+        case StateAction.COORDINATE:
+            if not state.questions:
+                send_process_message_to_user(
+                    state, StateAction.SCORE_QUERY, "Error state"
+                )
+                return state
+
+            send_process_message_to_user(
+                state,
+                StateAction.SCORE_QUERY,
+                "Asserting the quality of your questions",
+            )
+            quality_score = quality_check_your_questions(state.questions)
+            state = state.model_copy(
+                update={
+                    "questions": state.questions.model_copy(
+                        update={"questions_score": quality_score}, deep=True
+                    )
+                },
+                deep=True,
+            )
+
+            return state_process(
+                state,
+                StateAction.SCORE_QUERY,
+                StateAction.COORDINATE,
+                send_state_to_user,
+            )
+
+    return state
+
+
+def challenge(
+    state: ConversationState,
+    previous_action: StateAction | None,
+    send_state_to_user: Callable[[ConversationState, StateAction, str], None],
+) -> ConversationState:
+    match previous_action:
+        case StateAction.COORDINATE:
+            send_process_message_to_user(
+                state, StateAction.CHALLENGE, "Trying to challenge you.."
+            )
             if not state.questions:
                 # Send error here
                 return state
             else:
-                refined_questions = challenge(state.questions)
-
+                refined_questions = challenge_llm(state.questions)
                 state = state.model_copy(
                     update={"refined_questions": refined_questions}, deep=True
                 )
@@ -199,7 +218,16 @@ def state_process(
                     StateAction.COORDINATE,
                     send_state_to_user,
                 )
-        case (StateAction.COORDINATE, StateAction.QUERY_LLM):
+    return state
+
+
+def query_llm(
+    state: ConversationState,
+    previous_action: StateAction | None,
+    send_state_to_user: Callable[[ConversationState, StateAction, str], None],
+) -> ConversationState:
+    match previous_action:
+        case StateAction.COORDINATE:
             if state.questions:
                 query = extract_search_query(state.questions)
                 state = state.model_copy(update={"query": query}, deep=True)
@@ -216,7 +244,24 @@ def state_process(
                     StateAction.COORDINATE,
                     send_state_to_user,
                 )
+    return state
 
+
+def state_process(
+    state: ConversationState,
+    previous_action: StateAction | None,
+    action: StateAction,
+    send_state_to_user: Callable[[ConversationState, StateAction, str], None],
+) -> ConversationState:
+    match (previous_action, action):
+        case (transition_from, StateAction.COORDINATE):
+            return coordination(state, transition_from, send_state_to_user)
+        case (transition_from, StateAction.SCORE_QUERY):
+            return score_query(state, transition_from, send_state_to_user)
+        case (transition_from, StateAction.CHALLENGE):
+            return challenge(state, transition_from, send_state_to_user)
+        case (transition_from, StateAction.QUERY_LLM):
+            return query_llm(state, transition_from, send_state_to_user)
         case _:
             print(f"Nothing MATCHED: {previous_action}{action}")
             return state
@@ -261,7 +306,7 @@ def quality_check_your_questions(questions: Questions) -> QuestionsScore | None:
     return completions.choices[0].message.parsed
 
 
-def challenge(question: Questions) -> RefinedQuestions | None:
+def challenge_llm(question: Questions) -> RefinedQuestions | None:
     contradiction = (
         [
             {
