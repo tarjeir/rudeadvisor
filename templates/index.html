@@ -7,6 +7,113 @@
     <!-- Load HTMX from CDN -->
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
     <script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.12/dist/ext/json-enc.js"></script>
+    <style>
+    
+/* Base styles */
+      body {
+          font-family: 'Arial', sans-serif;
+          line-height: 1.6;
+          color: #333;
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 20px;
+          background-color: #f4f4f4;
+      }
+
+      h1 {
+          color: #2c3e50;
+          text-align: center;
+          margin-bottom: 30px;
+      }
+
+      /* Container styles */
+      .container {
+          background-color: #fff;
+          border-radius: 8px;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          padding: 20px;
+      }
+
+      /* Conversation and form styles */
+      .conversation, .form {
+          background-color: #fff;
+          border-radius: 8px;
+          padding: 20px;
+          margin-bottom: 20px;
+      }
+
+      .message {
+          background-color: #e8f4f8;
+          border-left: 4px solid #3498db;
+          padding: 10px;
+          margin-bottom: 10px;
+          border-radius: 4px;
+      }
+
+      .timestamp {
+          font-size: 0.8em;
+          color: #7f8c8d;
+          display: block;
+          margin-top: 5px;
+      }
+
+      /* Form styles */
+      .questionGroup {
+          margin-bottom: 15px;
+      }
+
+      label {
+          display: block;
+          margin-bottom: 5px;
+          color: #2c3e50;
+      }
+
+      input[type="text"] {
+          width: 100%;
+          padding: 8px;
+          border: 1px solid #bdc3c7;
+          border-radius: 4px;
+          font-size: 16px;
+      }
+
+      button {
+          background-color: #3498db;
+          color: #fff;
+          border: none;
+          padding: 10px 15px;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 16px;
+          transition: background-color 0.3s ease;
+      }
+
+      button:hover {
+          background-color: #2980b9;
+      }
+
+      /* Responsive design */
+      @media (max-width: 768px) {
+          .container {
+              flex-direction: column;
+          }
+
+          .conversation, .form {
+              width: 100%;
+          }
+      }
+
+      /* HTMX indicator styles */
+      .htmx-indicator {
+          opacity: 0;
+          transition: opacity 200ms ease-in;
+      }
+
+      .htmx-request .htmx-indicator,
+      .htmx-request.htmx-indicator {
+          opacity: 1;
+      }
+    </style>
 </head>
 <body>
     <h1>Conversational API</h1>

@@ -1,5 +1,43 @@
-<div 
-  hx-ext="sse" sse-connect="/conversation/{{conversation_id}}" sse-swap="message" 
-    hx-swap="beforeend">
+<div class="container">
+    <div class="conversation"
+         hx-ext="sse"
+         sse-connect="/conversation/{{conversation_id}}"
+         sse-swap="message"
+         hx-swap="beforeend">
+    </div>
+    <form id="questionsForm">
+        <div id="questionsContainer">
+            <div class="questionGroup">
+                <label for="question_text_1">Question 1:</label>
+                <input type="text" id="question_text_1" name="questions_list" class="question-input">
+            </div>
+        </div>
+        <button type="button" onclick="addQuestion()">Add Question</button>
+    </form>
+    <button hx-post="/conversation/{{ conversation_id }}"
+            hx-trigger="click"
+            hx-ext="json-enc"
+            hx-include=".question-input"
+            hx-target="#response-area">
+        Submit Questions
+    </button>
+    <div id="response-area" style="display: none;"></div>
 </div>
+
+<script>
+    let questionCount = 1;
+
+    function addQuestion() {
+        if (questionCount >= 10) return; // Limit to 10 questions
+        questionCount++;
+        const questionsContainer = document.getElementById('questionsContainer');
+        const div = document.createElement('div');
+        div.className = 'questionGroup';
+        div.innerHTML = `
+            <label for="question_text_${questionCount}">Question ${questionCount}:</label>
+            <input type="text" id="question_text_${questionCount}" name="questions_list" class="question-input">
+        `;
+        questionsContainer.appendChild(div);
+    }
+</script>
 

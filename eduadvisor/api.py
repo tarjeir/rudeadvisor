@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Form
 from fastapi.requests import Request
 from fastapi.templating import Jinja2Templates
 from sse_starlette.sse import EventSourceResponse
@@ -63,8 +63,7 @@ def root(request: Request):
 @app.get("/conversation")
 def create_conversation(request: Request):
     conversation_id = str(uuid4())
-    initial_questions = ["What is your name?", "How can I help you today?"]
-    state = edu_model.create_initial_state(conversation_id, initial_questions)
+    state = edu_model.create_initial_state(conversation_id)
     set_state_in_cache(conversation_id, state)
     return templates.TemplateResponse(
         "conversation.html",
@@ -100,13 +99,29 @@ async def stream_conversation(conversation_id: str):
 
 
 @app.post("/conversation/{conversation_id}", status_code=201)
-async def handle_action(conversation_id: str, questions: edu_model.Questions):
+async def handle_action(
+    conversation_id: str, questions_request: edu_model.QuestionsRequest
+):
 
     state = await get_state_json(conversation_id)
     if state is None:
         raise HTTPException(
             status_code=404, detail=f"Conversaton with {conversation_id} does not exist"
         )
+
+    questions = edu_model.Questions(
+        questions=list(
+            map(
+                lambda q_str: edu_model.Question(question_text=q_str),
+                (
+                    questions_request.questions_list
+                    if isinstance(questions_request.questions_list, list)
+                    else [questions_request.questions_list]
+                ),
+            )
+        ),
+        questions_score=None,
+    )
 
     state = state.model_copy(update={"questions": questions}, deep=True)
     model_json = state.model_dump_json()

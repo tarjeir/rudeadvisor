@@ -7,6 +7,7 @@ from enum import Enum
 
 class StateAction(str, Enum):
     COORDINATE = "Coordinate"
+    SCORE_QUERY = "Query"
     BUILD_QUESTION = "BuildQuestion"
     CHALLENGE = "Challenge"
     WEB_SEARCH = "WebSearch"
@@ -35,7 +36,7 @@ class SeedQuestions(EduModel):
 
 class Question(EduModel):
     question_text: str
-    priority: int
+    priority: int = 1
 
 
 class QuestionsScore(EduModel):
@@ -58,7 +59,17 @@ class Query(EduModel):
 
 
 class WebSearchResult(EduModel):
-    data: str
+    snippet: str
+    title: str
+    link: str
+
+
+class WebSearchResults(EduModel):
+    web_search_results: list[WebSearchResult]
+
+
+class WebSearchError(EduModel):
+    message: str
 
 
 class Prompt(EduModel):
@@ -71,7 +82,6 @@ class Answer(EduModel):
 
 class ConversationState(EduModel):
     conversation_id: str = Field(default_factory=lambda: str(uuid4()))
-    seed_questions: SeedQuestions = Field(default_factory=SeedQuestions)
     questions: Optional[Questions] = None
     refined_questions: Optional[RefinedQuestions] = None
     query: Optional[Query] = None
@@ -83,21 +93,15 @@ class ConversationState(EduModel):
     last_action: StateAction
 
 
-def create_initial_state(
-    conversation_id: str, initial_questions: List[str]
-) -> ConversationState:
+class QuestionsRequest(BaseModel):
+    questions_list: list[str] | str
+
+
+def create_initial_state(conversation_id: str) -> ConversationState:
     """
     Create initial state with seeded questions
     """
     state = ConversationState(
         conversation_id=conversation_id, last_action=StateAction.BUILD_QUESTION
-    )
-    state.seed_questions = SeedQuestions(questions=initial_questions)
-    state.messages.append(
-        Message(
-            message_type=MessageType.REFINED_QUESTION,
-            state_action=StateAction.BUILD_QUESTION,
-            content="Can you write an essay about Napoleon?",
-        )
     )
     return state

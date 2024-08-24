@@ -10,3 +10,7 @@ celery[redis]
 sse-starlette
 typer
 openai
+duckduckgo-search
+langchain-community
+pytest
+debugpy
