@@ -1,10 +1,11 @@
+from os import stat
 from eduadvisor import model as edu_model
 from datetime import datetime
 from typing import Callable
 from eduadvisor import llm
 
 
-def state_process(
+def transition(
     state: edu_model.ConversationState,
     previous_action: edu_model.StateAction | None,
     action: edu_model.StateAction,
@@ -17,19 +18,110 @@ def state_process(
     """
     match (previous_action, action):
         case (transition_from, edu_model.StateAction.COORDINATE):
-            return coordination(state, transition_from, send_state_to_user)
+            return coordination_agent(state, transition_from, send_state_to_user)
         case (transition_from, edu_model.StateAction.SCORE_QUERY):
-            return score_query(state, transition_from, send_state_to_user)
+            return score_query_agent(state, transition_from, send_state_to_user)
         case (transition_from, edu_model.StateAction.CHALLENGE):
-            return challenge(state, transition_from, send_state_to_user)
+            return challenge_agent(state, transition_from, send_state_to_user)
         case (transition_from, edu_model.StateAction.QUERY_LLM):
-            return query_llm(state, transition_from, send_state_to_user)
+            return query_llm_agent(state, transition_from, send_state_to_user)
+        case (transition_from, edu_model.StateAction.WEB_SEARCH):
+            return web_search_agent(state, transition_from, send_state_to_user)
+        case (transition_from, edu_model.StateAction.SOURCE_APPROVE):
+            return source_approve_agent(state, transition_from, send_state_to_user)
         case _:
             print(f"Nothing MATCHED: {previous_action}{action}")
             return state
 
 
-def coordination(
+def source_approve_agent(
+    state: edu_model.ConversationState,
+    previous_action: edu_model.StateAction | None,
+    send_state_to_user: Callable[
+        [edu_model.ConversationState, edu_model.StateAction, str], None
+    ],
+) -> edu_model.ConversationState:
+    match previous_action:
+        case edu_model.StateAction.WEB_SEARCH:
+            if state.web_search_results and state.query:
+                send_state_to_user(
+                    state,
+                    edu_model.StateAction.SOURCE_APPROVE,
+                    "Doing som sanity check on the urls you found",
+                )
+                sources = llm.evaluate_the_sources(
+                    state.web_search_results, state.query
+                )
+                state = state.model_copy(update={"sources": sources}, deep=True)
+                if sources and len(sources.links) < 2:
+                    send_state_to_user(
+                        state,
+                        edu_model.StateAction.SOURCE_APPROVE,
+                        "Too few results are retrieved from the web to improve the prompt. Asking to improve the query",
+                    )
+                    return transition(
+                        state,
+                        edu_model.StateAction.SOURCE_APPROVE,
+                        edu_model.StateAction.QUERY_LLM,
+                        send_state_to_user,
+                    )
+                elif sources and len(sources.links):
+                    send_state_to_user(
+                        state,
+                        edu_model.StateAction.SOURCE_APPROVE,
+                        f"We are happy about the links {sources.links} and will generate a prompt based on it to create an answer for you",
+                    )
+                    return state
+                else:
+                    send_state_to_user(
+                        state,
+                        edu_model.StateAction.SOURCE_APPROVE,
+                        f"We are not happy about the links ",
+                    )
+                    return state
+
+    return state
+
+
+def web_search_agent(
+    state: edu_model.ConversationState,
+    previous_action: edu_model.StateAction | None,
+    send_state_to_user: Callable[
+        [edu_model.ConversationState, edu_model.StateAction, str], None
+    ],
+) -> edu_model.ConversationState:
+
+    match previous_action:
+        case edu_model.StateAction.QUERY_LLM:
+            if state.query:
+                search_results = llm.query_duckduckgo(state.query)
+                if isinstance(search_results, edu_model.WebSearchError):
+                    send_state_to_user(
+                        state,
+                        edu_model.StateAction.WEB_SEARCH,
+                        "Failed to search for you ",
+                    )
+                    return state
+                else:
+                    state = state.model_copy(
+                        update={"web_search_results": search_results}, deep=True
+                    )
+                    send_state_to_user(
+                        state,
+                        edu_model.StateAction.WEB_SEARCH,
+                        f"Found {len(search_results.web_search_results)} search results",
+                    )
+                    return transition(
+                        state,
+                        edu_model.StateAction.WEB_SEARCH,
+                        edu_model.StateAction.SOURCE_APPROVE,
+                        send_state_to_user,
+                    )
+
+    return state
+
+
+def coordination_agent(
     state: edu_model.ConversationState,
     previous_action: edu_model.StateAction | None,
     send_state_to_user: Callable[
@@ -46,7 +138,7 @@ def coordination(
                 edu_model.StateAction.COORDINATE,
                 f"Thanks ... ",
             )
-            return state_process(
+            return transition(
                 state,
                 edu_model.StateAction.COORDINATE,
                 edu_model.StateAction.SCORE_QUERY,
@@ -67,7 +159,7 @@ def coordination(
                     quality_score.score_comment
                     + f", I scored it {quality_score.score}",
                 )
-                return state_process(
+                return transition(
                     state,
                     edu_model.StateAction.COORDINATE,
                     edu_model.StateAction.CHALLENGE,
@@ -79,7 +171,7 @@ def coordination(
                     edu_model.StateAction.COORDINATE,
                     f"The quality is good. {quality_score.score}/100. The comment is {quality_score.score_comment}. We will continue creating prompts",
                 )
-                return state_process(
+                return transition(
                     state,
                     edu_model.StateAction.COORDINATE,
                     edu_model.StateAction.QUERY_LLM,
@@ -121,7 +213,7 @@ def coordination(
     return state
 
 
-def score_query(
+def score_query_agent(
     state: edu_model.ConversationState,
     previous_action: edu_model.StateAction | None,
     send_state_to_user: Callable[
@@ -154,7 +246,7 @@ def score_query(
                 deep=True,
             )
 
-            return state_process(
+            return transition(
                 state,
                 edu_model.StateAction.SCORE_QUERY,
                 edu_model.StateAction.COORDINATE,
@@ -164,7 +256,7 @@ def score_query(
     return state
 
 
-def challenge(
+def challenge_agent(
     state: edu_model.ConversationState,
     previous_action: edu_model.StateAction | None,
     send_state_to_user: Callable[
@@ -188,7 +280,7 @@ def challenge(
                     update={"refined_questions": refined_questions}, deep=True
                 )
 
-                return state_process(
+                return transition(
                     state,
                     edu_model.StateAction.CHALLENGE,
                     edu_model.StateAction.COORDINATE,
@@ -197,7 +289,7 @@ def challenge(
     return state
 
 
-def query_llm(
+def query_llm_agent(
     state: edu_model.ConversationState,
     previous_action: edu_model.StateAction | None,
     send_state_to_user: Callable[
@@ -207,22 +299,19 @@ def query_llm(
     """
     Query the language model based on the current and previous action.
     """
-    match previous_action:
-        case edu_model.StateAction.COORDINATE:
-            if state.questions:
-                query = llm.extract_search_query(state.questions)
-                state = state.model_copy(update={"query": query}, deep=True)
-                return state_process(
-                    state,
-                    edu_model.StateAction.QUERY_LLM,
-                    edu_model.StateAction.COORDINATE,
-                    send_state_to_user,
-                )
-            else:
-                return state_process(
-                    state,
-                    edu_model.StateAction.QUERY_LLM,
-                    edu_model.StateAction.COORDINATE,
-                    send_state_to_user,
-                )
+    if state.questions:
+        query = llm.extract_search_query(state.questions, state.query, state.sources)
+        state = state.model_copy(update={"query": query}, deep=True)
+        return transition(
+            state,
+            edu_model.StateAction.QUERY_LLM,
+            edu_model.StateAction.WEB_SEARCH,
+            send_state_to_user,
+        )
+
+    send_state_to_user(
+        state,
+        edu_model.StateAction.QUERY_LLM,
+        "Tehre are no questions to analyse",
+    )
     return state

@@ -7,6 +7,93 @@ import re
 openai_client = openai.OpenAI()
 
 
+def clean_and_parse(input_string: str) -> list[dict[str, str]]:
+    # Regular expression to match the pattern within brackets
+    pattern = re.compile(r"\[snippet:\s*(.+?),\s*title:\s*(.+?),\s*link:\s*(.+?)\]")
+
+    # Find all matches in the input string
+    matches = pattern.findall(input_string)
+
+    # Construct the list of dictionaries from matches
+    parsed_results = [
+        {"snippet": match[0], "title": match[1], "link": match[2]} for match in matches
+    ]
+
+    return parsed_results
+
+
+def query_duckduckgo(
+    query: edu_model.Query,
+) -> edu_model.WebSearchResults | edu_model.WebSearchError:
+    """
+    Queries DuckDuckGo and returns snippets with URLs.
+    """
+    try:
+        search = DuckDuckGoSearchResults()
+        results = search.invoke(query.query_text)
+        results_list = clean_and_parse(results)
+        web_result_list = [edu_model.WebSearchResult(**r) for r in results_list]
+        return edu_model.WebSearchResults(web_search_results=web_result_list)
+    except ValidationError:
+        return edu_model.WebSearchError(
+            message="We failed to return proper data from the search engine"
+        )
+    except Exception:
+        return edu_model.WebSearchError(
+            message="We failed to search the web for relevant info"
+        )
+
+
+def evaluate_the_sources(
+    web_search_results: edu_model.WebSearchResults, query: edu_model.Query
+) -> edu_model.Sources | None:
+    """
+    A function to evaluate the credibility of the web results. If there are few good results,
+    give a suggestion to a user or agent on how to tune the query to get better results.
+    """
+    combined_results = [
+        f"Snippet: {result.snippet}, URL: {result.link}"
+        for result in web_search_results.web_search_results
+    ]
+
+    messages = [
+        {
+            "role": "system",
+            "content": """I am a credibility evaluator.
+            I will evaluate the credibility of the web results provided based on their snippets and URLs.
+            - Provide a brief analysis of the overall credibility of the results.
+            - If the results are not credible, suggest improvements for tuning the search query.
+            - Return all the links but remove links from non credible sources
+            - Sources that are curated and edited is a good thing
+            - Sources that are official is a good thing
+            - Use domain name to validate credebility: Top level domains .org, .edu are good vs .tk, .ru that are bad. 
+            - Blogging platforms and social media should be avoided, unless the author has associated it with proper research or research institutions
+            - If the language in the snippet seem unproffesional the source should be avoided
+            - The original search query is attached. If you have some suggestions to how to improve the search.
+            """,
+        },
+        {
+            "role": "user",
+            "content": f"Here is the search query that initially found the results {query.query_text}",
+        },
+        {
+            "role": "user",
+            "content": f"Here are the combined results for evaluation: {' '.join(combined_results)}",
+        },
+    ]
+
+    completions = openai_client.beta.chat.completions.parse(
+        model="gpt-4o-mini",
+        messages=messages,
+        response_format=edu_model.Sources,
+    )
+
+    if len(completions.choices) == 0:
+        return None
+
+    return completions.choices[0].message.parsed
+
+
 def quality_check_your_questions(
     questions: edu_model.Questions,
 ) -> edu_model.QuestionsScore | None:
@@ -45,6 +132,8 @@ def quality_check_your_questions(
         ],
         response_format=edu_model.QuestionsScore,
     )
+    if len(completions.choices) == 0:
+        return None
 
     return completions.choices[0].message.parsed
 
@@ -69,6 +158,7 @@ def challenge_llm(question: edu_model.Questions) -> edu_model.RefinedQuestions |
         Always generate minimum 3 refined questions at maximum 6
         I will try to put you off and add one relevant but bogus question, but I can not guarantee that I will
         Create a comment to the original question. You are allowed to be a bit 'mansplaining'when you comment the question. The challenger is not the nicest bot out there.
+        Can you make sure that at least one of the suggestion contains the form (essay, discussion, short text) or similar. 
         """,
         },
         {
@@ -83,13 +173,29 @@ def challenge_llm(question: edu_model.Questions) -> edu_model.RefinedQuestions |
         response_format=edu_model.RefinedQuestions,
     )
 
+    if len(completions.choices) == 0:
+        return None
+
     return completions.choices[0].message.parsed
 
 
-def extract_search_query(questions: edu_model.Questions) -> edu_model.Query | None:
+def extract_search_query(
+    questions: edu_model.Questions,
+    previous_query: edu_model.Query | None,
+    source: edu_model.Sources | None,
+) -> edu_model.Query | None:
     """
     Extracts the most important topics for a search query from the given questions.
     """
+    adjustments = None
+    if source and previous_query:
+        adjustments = {
+            "role": "system",
+            "content": f"""
+           The previous query {previous_query.query_text}. Got the following improvement suggestion: {source.query_tuning_suggestion} 
+        """,
+        }
+
     # Formulating the system message that guides the AI to generate a search query
     instructions = {
         "role": "system",
@@ -121,6 +227,8 @@ def extract_search_query(questions: edu_model.Questions) -> edu_model.Query | No
 
     # Combining the instructional and user messages into a single prompt
     messages = [instructions, user_message]
+    if adjustments:
+        messages.append(adjustments)
 
     # Making an API call to the AI model to generate the search query
     completions = openai_client.beta.chat.completions.parse(
@@ -128,42 +236,7 @@ def extract_search_query(questions: edu_model.Questions) -> edu_model.Query | No
         messages=messages,
         response_format=edu_model.Query,
     )
+    if len(completions.choices) == 0:
+        return None
 
-    return completions.choices[0].message.parsed if completions.choices else None
-
-
-def clean_and_parse(input_string: str) -> list[dict[str, str]]:
-    # Regular expression to match the pattern within brackets
-    pattern = re.compile(r"\[snippet:\s*(.+?),\s*title:\s*(.+?),\s*link:\s*(.+?)\]")
-
-    # Find all matches in the input string
-    matches = pattern.findall(input_string)
-
-    # Construct the list of dictionaries from matches
-    parsed_results = [
-        {"snippet": match[0], "title": match[1], "link": match[2]} for match in matches
-    ]
-
-    return parsed_results
-
-
-def query_duckduckgo(
-    query: edu_model.Query,
-) -> edu_model.WebSearchResults | edu_model.WebSearchError:
-    """
-    Queries DuckDuckGo and returns snippets with URLs.
-    """
-    try:
-        search = DuckDuckGoSearchResults()
-        results = search.invoke(query.query_text)
-        results_list = clean_and_parse(results)
-        web_result_list = [edu_model.WebSearchResult(**r) for r in results_list]
-        return edu_model.WebSearchResults(web_search_results=web_result_list)
-    except ValidationError:
-        return edu_model.WebSearchError(
-            message="We failed to return proper data from the search engine"
-        )
-    except Exception:
-        return edu_model.WebSearchError(
-            message="We failed to search the web for relevant info"
-        )
+    return completions.choices[0].message.parsed

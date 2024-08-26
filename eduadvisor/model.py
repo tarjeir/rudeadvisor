@@ -12,6 +12,7 @@ class StateAction(str, Enum):
     CHALLENGE = "Challenge"
     WEB_SEARCH = "WebSearch"
     QUERY_LLM = "QueryLLM"
+    SOURCE_APPROVE = "SourceApprove"
 
 
 class MessageType(str, Enum):
@@ -68,6 +69,11 @@ class WebSearchResults(EduModel):
     web_search_results: list[WebSearchResult]
 
 
+class Sources(EduModel):
+    links: list[str]
+    query_tuning_suggestion: str | None
+
+
 class WebSearchError(EduModel):
     message: str
 
@@ -85,7 +91,8 @@ class ConversationState(EduModel):
     questions: Optional[Questions] = None
     refined_questions: Optional[RefinedQuestions] = None
     query: Optional[Query] = None
-    some_data: Optional[WebSearchResult] = None
+    web_search_results: Optional[WebSearchResults] = None
+    sources: Optional[Sources] = None
     prompt: Optional[Prompt] = None
     answer: Optional[Answer] = None
     messages: List[Message] = Field(default_factory=list)

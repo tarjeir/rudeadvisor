@@ -1,6 +1,6 @@
 import pytest
 
-from eduadvisor.worker import clean_and_parse
+from eduadvisor.llm import clean_and_parse
 
 
 @pytest.mark.parametrize(

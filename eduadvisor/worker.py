@@ -46,9 +46,10 @@ def process_action(
 
     send_process_message_to_user(state, action, f"Processing your {action} request")
 
-    state = agents.state_process(
+    state = agents.transition(
         state, previous_action, action, send_process_message_to_user
     )
-    redis_client.publish(
-        f"conversation:{state.conversation_id}", state.model_dump_json()
+
+    send_process_message_to_user(
+        state, action, f"We finished the processing of your request"
     )
