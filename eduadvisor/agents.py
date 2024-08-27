@@ -1,7 +1,7 @@
 import logging
 from eduadvisor import model as edu_model
 from typing import Callable
-from eduadvisor import llm
+from eduadvisor import tools
 
 
 def transition(
@@ -56,7 +56,7 @@ def source_approve_agent(
             edu_model.StateAction.SOURCE_APPROVE,
             "Let me do a sanity check on the URLs you've found.",
         )
-        sources = llm.evaluate_the_sources(state.web_search_results, state.query)
+        sources = tools.evaluate_the_sources(state.web_search_results, state.query)
         state = state.model_copy(update={"sources": sources}, deep=True)
         logging.debug(f"Updated state with sources: {sources}")
 
@@ -110,7 +110,7 @@ def web_search_agent(
     match previous_action:
         case edu_model.StateAction.QUERY_LLM:
             if state.query:
-                search_results = llm.query_duckduckgo(state.query)
+                search_results = tools.query_duckduckgo(state.query)
                 if isinstance(search_results, edu_model.WebSearchError):
                     send_state_to_user(
                         state,
@@ -253,7 +253,7 @@ def score_query_agent(
         edu_model.StateAction.SCORE_QUERY,
         "Let me assess the quality of your questions.",
     )
-    quality_score = llm.quality_check_your_questions(state.questions)
+    quality_score = tools.quality_check_your_questions(state.questions)
     state = state.model_copy(
         update={
             "questions": state.questions.model_copy(
@@ -293,7 +293,7 @@ def challenge_agent(
         logging.error("No questions added")
         return state
     else:
-        refined_questions = llm.challenge_llm(state.questions)
+        refined_questions = tools.challenge_llm(state.questions)
         state = state.model_copy(
             update={"refined_questions": refined_questions}, deep=True
         )
@@ -322,7 +322,7 @@ def query_llm_agent(
     )
 
     if state.questions:
-        query = llm.extract_search_query(state.questions, state.query, state.sources)
+        query = tools.extract_search_query(state.questions, state.query, state.sources)
         state = state.model_copy(update={"query": query}, deep=True)
         logging.debug(f"Updated state with query: {query}")
 
