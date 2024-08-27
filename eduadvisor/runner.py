@@ -18,7 +18,15 @@ def start_worker():
     """
     Start the Celery worker.
     """
-    subprocess.run(["celery", "-A", "eduadvisor.worker", "worker", "--loglevel=info"])
+    subprocess.run(
+        [
+            "celery",
+            "-A",
+            "eduadvisor.worker",
+            "worker",
+            "--loglevel=debug",
+        ]
+    )
 
 
 if __name__ == "__main__":

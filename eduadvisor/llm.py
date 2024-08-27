@@ -3,22 +3,21 @@ from pydantic import ValidationError
 from eduadvisor import model as edu_model
 import openai
 import re
+import logging
 
 openai_client = openai.OpenAI()
 
 
 def clean_and_parse(input_string: str) -> list[dict[str, str]]:
-    # Regular expression to match the pattern within brackets
+    logging.debug("Cleaning and parsing input string.")
     pattern = re.compile(r"\[snippet:\s*(.+?),\s*title:\s*(.+?),\s*link:\s*(.+?)\]")
 
-    # Find all matches in the input string
     matches = pattern.findall(input_string)
 
-    # Construct the list of dictionaries from matches
     parsed_results = [
         {"snippet": match[0], "title": match[1], "link": match[2]} for match in matches
     ]
-
+    logging.debug(f"Parsed results: {parsed_results}")
     return parsed_results
 
 
@@ -28,6 +27,7 @@ def query_duckduckgo(
     """
     Queries DuckDuckGo and returns snippets with URLs.
     """
+    logging.debug(f"Querying DuckDuckGo for: {query.query_text}")
     try:
         search = DuckDuckGoSearchResults()
         results = search.invoke(query.query_text)
@@ -35,10 +35,12 @@ def query_duckduckgo(
         web_result_list = [edu_model.WebSearchResult(**r) for r in results_list]
         return edu_model.WebSearchResults(web_search_results=web_result_list)
     except ValidationError:
+        logging.error("ValidationError occurred while querying DuckDuckGo.")
         return edu_model.WebSearchError(
             message="We failed to return proper data from the search engine"
         )
-    except Exception:
+    except Exception as e:
+        logging.error(f"Exception occurred while querying DuckDuckGo: {e}")
         return edu_model.WebSearchError(
             message="We failed to search the web for relevant info"
         )
@@ -51,6 +53,7 @@ def evaluate_the_sources(
     A function to evaluate the credibility of the web results. If there are few good results,
     give a suggestion to a user or agent on how to tune the query to get better results.
     """
+    logging.debug("Evaluating the sources.")
     combined_results = [
         f"Snippet: {result.snippet}, URL: {result.link}"
         for result in web_search_results.web_search_results
@@ -70,6 +73,7 @@ def evaluate_the_sources(
             - Blogging platforms and social media should be avoided, unless the author has associated it with proper research or research institutions
             - If the language in the snippet seem unproffesional the source should be avoided
             - The original search query is attached. If you have some suggestions to how to improve the search.
+            - Also exlplain why you removed urls output it  
             """,
         },
         {
@@ -89,8 +93,9 @@ def evaluate_the_sources(
     )
 
     if len(completions.choices) == 0:
+        logging.warning("No completions found for evaluating sources.")
         return None
-
+    logging.info("Source evaluation completed.")
     return completions.choices[0].message.parsed
 
 
@@ -189,10 +194,17 @@ def extract_search_query(
     """
     adjustments = None
     if source and previous_query:
+        logging.debug(
+            f"We need to refine the query by using: {previous_query} and {source}"
+        )
         adjustments = {
             "role": "system",
             "content": f"""
            The previous query {previous_query.query_text}. Got the following improvement suggestion: {source.query_tuning_suggestion} 
+           We also got some other comments from the removed queries: {source.removed_links_explaination}
+           Strategy to improve this:
+           1. Use fewer search words with less impact
+           2. Change search words with some synonyms 
         """,
         }
 
@@ -237,6 +249,7 @@ def extract_search_query(
         response_format=edu_model.Query,
     )
     if len(completions.choices) == 0:
+        logging.debug("No completions found for extracting search query.")
         return None
-
+    logging.debug("Search query extraction completed.")
     return completions.choices[0].message.parsed

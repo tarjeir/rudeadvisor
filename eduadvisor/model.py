@@ -72,6 +72,7 @@ class WebSearchResults(EduModel):
 class Sources(EduModel):
     links: list[str]
     query_tuning_suggestion: str | None
+    removed_links_explaination: str | None
 
 
 class WebSearchError(EduModel):
