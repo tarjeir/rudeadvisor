@@ -1,15 +1,12 @@
 import logging
-from celery import Celery
 from datetime import datetime
 from eduadvisor import model as edu_model
 from eduadvisor import agents
 import redis
 
-# Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-celery_app = Celery("tasks", broker="redis://localhost:6379/0")
 redis_client = redis.Redis(host="localhost", port=6379, db=0)
 
 
@@ -40,7 +37,6 @@ def send_process_message_to_user(
     logger.debug(f"Message published to channel: {channel_name}")
 
 
-@celery_app.task(name="process_action")
 def process_action(
     conversation_state: edu_model.ConversationState | str,
     previous_action: edu_model.StateAction | None,

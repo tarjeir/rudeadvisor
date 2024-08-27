@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Form
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.requests import Request
 from fastapi.templating import Jinja2Templates
 from sse_starlette.sse import EventSourceResponse
@@ -100,9 +100,10 @@ async def stream_conversation(conversation_id: str):
 
 @app.post("/conversation/{conversation_id}", status_code=201)
 async def handle_action(
-    conversation_id: str, questions_request: edu_model.QuestionsRequest
+    conversation_id: str,
+    questions_request: edu_model.QuestionsRequest,
+    background_task: BackgroundTasks,
 ):
-
     state = await get_state_json(conversation_id)
     if state is None:
         raise HTTPException(
@@ -125,8 +126,8 @@ async def handle_action(
 
     state = state.model_copy(update={"questions": questions}, deep=True)
     model_json = state.model_dump_json()
-    result = edu_worker.process_action.delay(
-        model_json, None, edu_model.StateAction.COORDINATE
+    background_task.add_task(
+        edu_worker.process_action, model_json, None, edu_model.StateAction.COORDINATE
     )
 
-    return {"status": "Action is being processed", "task_id": result.id}
+    return {"status": "Action is being processed"}
