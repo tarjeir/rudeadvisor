@@ -1,6 +1,5 @@
 import logging
 from eduadvisor import model as edu_model
-from datetime import datetime
 from typing import Callable
 from eduadvisor import llm
 
@@ -55,7 +54,7 @@ def source_approve_agent(
         send_state_to_user(
             state,
             edu_model.StateAction.SOURCE_APPROVE,
-            "Doing some sanity check on the URLs you found",
+            "Let me do a sanity check on the URLs you've found.",
         )
         sources = llm.evaluate_the_sources(state.web_search_results, state.query)
         state = state.model_copy(update={"sources": sources}, deep=True)
@@ -65,7 +64,7 @@ def source_approve_agent(
             send_state_to_user(
                 state,
                 edu_model.StateAction.SOURCE_APPROVE,
-                "Too few results are retrieved from the web to improve the prompt. Asking to improve the query",
+                "Too few results retrieved from the web. You really should improve the query.",
             )
             return transition(
                 state,
@@ -82,7 +81,7 @@ def source_approve_agent(
             send_state_to_user(
                 state,
                 edu_model.StateAction.SOURCE_APPROVE,
-                f"We are happy about the links {sources.links} and will generate a prompt based on it to create an answer for you. "
+                f"Okay, I guess we can use the links {sources.links} to generate a prompt and create an answer. "
                 + explaination_of_removed_links,
             )
             return state
@@ -90,7 +89,7 @@ def source_approve_agent(
             send_state_to_user(
                 state,
                 edu_model.StateAction.SOURCE_APPROVE,
-                "We are not happy about the links",
+                "The links are not good enough.",
             )
             return state
 
@@ -116,7 +115,7 @@ def web_search_agent(
                     send_state_to_user(
                         state,
                         edu_model.StateAction.WEB_SEARCH,
-                        "Failed to search for you",
+                        "Unfortunately, the web search failed.",
                     )
                     return state
                 else:
@@ -130,7 +129,7 @@ def web_search_agent(
                     send_state_to_user(
                         state,
                         edu_model.StateAction.WEB_SEARCH,
-                        f"Found {len(search_results.web_search_results)} search results",
+                        f"You only got {len(search_results.web_search_results)} search results.",
                     )
                     return transition(
                         state,
@@ -196,7 +195,7 @@ def coordination_agent(
                 send_state_to_user(
                     state,
                     edu_model.StateAction.COORDINATE,
-                    f"The quality is good. {quality_score.score}/100. The comment is {quality_score.score_comment}. We will continue creating prompts",
+                    f"The quality is fine. {quality_score.score}/100. The comment is {quality_score.score_comment}. We will continue creating prompts.",
                 )
                 return transition(
                     state,
@@ -252,7 +251,7 @@ def score_query_agent(
     send_state_to_user(
         state,
         edu_model.StateAction.SCORE_QUERY,
-        "Asserting the quality of your questions",
+        "Let me assess the quality of your questions.",
     )
     quality_score = llm.quality_check_your_questions(state.questions)
     state = state.model_copy(
@@ -288,7 +287,7 @@ def challenge_agent(
     )
 
     send_state_to_user(
-        state, edu_model.StateAction.CHALLENGE, "Trying to challenge you.."
+        state, edu_model.StateAction.CHALLENGE, "I'm going to challenge you.."
     )
     if not state.questions:
         logging.error("No questions added")
@@ -337,6 +336,6 @@ def query_llm_agent(
     send_state_to_user(
         state,
         edu_model.StateAction.QUERY_LLM,
-        "There are no questions to analyze",
+        "There are no questions to analyze. Please try asking some first.",
     )
     return state
