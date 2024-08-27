@@ -1,4 +1,4 @@
-from langchain_community.tools import DuckDuckGoSearchResults
+from duckduckgo_search import DDGS
 from pydantic import ValidationError
 from eduadvisor import model as edu_model
 import openai
@@ -29,10 +29,15 @@ def query_duckduckgo(
     """
     logging.debug(f"Querying DuckDuckGo for: {query.query_text}")
     try:
-        search = DuckDuckGoSearchResults()
-        results = search.invoke(query.query_text)
-        results_list = clean_and_parse(results)
-        web_result_list = [edu_model.WebSearchResult(**r) for r in results_list]
+        ddgs = DDGS()
+        results = ddgs.text(query.query_text, max_results=10)
+        web_result_list = [
+            edu_model.WebSearchResult(
+                title=result["title"], link=result["href"], snippet=result["body"]
+            )
+            for result in results
+        ]
+
         return edu_model.WebSearchResults(web_search_results=web_result_list)
     except ValidationError:
         logging.error("ValidationError occurred while querying DuckDuckGo.")
