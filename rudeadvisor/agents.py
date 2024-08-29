@@ -1,8 +1,8 @@
 import logging
 from math import acos
-from eduadvisor import model as edu_model
+from rudeadvisor import model as edu_model
 from typing import Callable
-from eduadvisor import tools
+from rudeadvisor import tools
 
 
 def transition(

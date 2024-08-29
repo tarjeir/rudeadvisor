@@ -6,8 +6,8 @@ from uuid import uuid4
 import redis
 import asyncio
 import inspect
-from eduadvisor import model as edu_model
-from eduadvisor import worker as edu_worker
+from rudeadvisor import model as edu_model
+from rudeadvisor import worker as edu_worker
 
 
 app = FastAPI()

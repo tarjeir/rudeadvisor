@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
-from eduadvisor import model as edu_model
-from eduadvisor import agents
+from rudeadvisor import model as edu_model
+from rudeadvisor import agents
 import redis
 
 logging.basicConfig(level=logging.DEBUG)

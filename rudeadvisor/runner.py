@@ -9,7 +9,7 @@ def start_server():
     """
     Start the Uvicorn server with FastAPI application.
     """
-    uvicorn.run("eduadvisor.api:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("rudeadvisor.api:app", host="127.0.0.1", port=8000, reload=True)
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@ from duckduckgo_search import DDGS
 from pydantic import ValidationError
 from bs4 import BeautifulSoup
 from io import BytesIO
-from eduadvisor import model as edu_model
+from rudeadvisor import model as edu_model
 import PyPDF2
 import openai
 import re

@@ -63,7 +63,7 @@ stateDiagram-v2
 git clone https://github.com/tarjeir/eduadvisor.git
 
 # Navigate to the project directory
-cd eduadvisor
+cd rudeadvisor
 
 # Install dependencies
 pip install -r requirements.txt
@@ -91,7 +91,7 @@ export OPENAI_API_KEY='your-openai-api-key'
 RudeAdvisor includes a FastAPI server for interfacing with the platform's functionalities. To start the server:
 
 ```bash
-python eduadvisor/runner.py
+python rudeadvisor/runner.py
 ```
 
 ### App
