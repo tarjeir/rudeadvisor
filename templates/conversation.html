@@ -5,7 +5,7 @@
          sse-swap="message"
          hx-swap="beforeend">
     </div>
-    <form id="questionsForm">
+    <form id="questionsForm" onsubmit="event.preventDefault(); document.getElementById('submitQuestionsButton').click();">
         <div id="questionsContainer">
             <div class="questionGroup">
                 <label for="question_text_1">Question 1:</label>
@@ -13,14 +13,18 @@
             </div>
         </div>
         <button type="button" onclick="addQuestion()">Add Question</button>
+        <button type="button" onclick="removeQuestion()">Remove Question</button>
+        <br/>
+        <button id="submitQuestionsButton"
+                type="submit"
+                hx-post="/conversation/{{ conversation_id }}"
+                hx-trigger="click"
+                hx-ext="json-enc"
+                hx-include=".question-input"
+                hx-target="#response-area">
+            Submit Questions
+        </button>
     </form>
-    <button hx-post="/conversation/{{ conversation_id }}"
-            hx-trigger="click"
-            hx-ext="json-enc"
-            hx-include=".question-input"
-            hx-target="#response-area">
-        Submit Questions
-    </button>
     <div id="response-area" style="display: none;"></div>
 </div>
 
@@ -38,6 +42,11 @@
             <input type="text" id="question_text_${questionCount}" name="questions_list" class="question-input">
         `;
         questionsContainer.appendChild(div);
+    }
+
+    function removeQuestion(button) {
+        button.parentElement.remove();
+        questionCount--;
     }
 </script>
 

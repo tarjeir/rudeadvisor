@@ -1,11 +1,150 @@
 from duckduckgo_search import DDGS
 from pydantic import ValidationError
+from bs4 import BeautifulSoup
+from io import BytesIO
 from eduadvisor import model as edu_model
+import PyPDF2
 import openai
 import re
 import logging
+import requests
+
 
 openai_client = openai.OpenAI()
+
+
+def answer_questions(
+    web_search_results: edu_model.WebSearchResults,
+    sources: edu_model.Sources,
+    questions: edu_model.Questions,
+    web_data_collection: edu_model.WebDataCollection | None,
+) -> edu_model.Answer | None:
+    """
+    Use gathered data to generate an answer for the given questions.
+    """
+    approved_links = set(sources.links)
+    search_results_text = "\n".join(
+        [
+            f"Title: {res.title}, Snippet: {res.snippet}"
+            for res in web_search_results.web_search_results
+            if res.link in approved_links
+        ]
+    )
+    sources_text = "\n".join([f"Link: {link}" for link in sources.links])
+    questions_text = "\n".join([f"Q: {q.question_text}" for q in questions.questions])
+    web_data_text = (
+        "\n".join(
+            [
+                f"Data: {web_data.data}"
+                for web_data in web_data_collection.web_data_collection
+            ]
+        )
+        if web_data_collection
+        else ""
+    )
+
+    prompt = (
+        f"Based on the following search results:\n{search_results_text}\n\n"
+        f"and sources:\n{sources_text}\n\n"
+        f"and data:\n{web_data_text}\n\n"
+        f"Keep the answer to less than 800 characters, but do not keep it too short if the user is asking for it. Typically an essay or discussion is a bit longer"
+    )
+
+    try:
+        completions = openai_client.beta.chat.completions.parse(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": prompt},
+                {
+                    "role": "user",
+                    "content": f"Please answer the following questions:\n{questions_text}",
+                },
+            ],
+            max_tokens=1000,
+            response_format=edu_model.Answer,
+        )
+    except Exception as e:
+        logging.error(f"Failed to to getting an answer {e} ")
+        return None
+
+    if len(completions.choices) == 0:
+        logging.warning("No completions found for answer generation.")
+        return None
+    else:
+        answer = completions.choices[0].message.parsed
+        if answer and answer.answer_text.strip() == "":
+            logging.warning("No completions found for answer generation.")
+
+        return answer
+
+
+def is_text_content(content: str) -> bool:
+    """
+    Checks if the content is primarily textual. Returns True if it is, False otherwise.
+    """
+    non_printable_chars = sum(1 for char in content if not char.isprintable())
+    if non_printable_chars / len(content) > 0.1:
+        return False
+    return True
+
+
+def scrape_links(source: edu_model.Sources) -> edu_model.WebDataCollection:
+    """
+    Scrape and retrieve all text content from the site and PDFs. It attempts to pre-sanitize the text and remove known ads.
+    """
+    web_data = []
+    errors = []
+
+    for link in source.links:
+        try:
+            logging.debug(f"Attempting to scrape link: {link}")
+
+            if link.endswith(".pdf"):
+                response = requests.get(link)
+                response.raise_for_status()
+
+                with BytesIO(response.content) as pdf_file:
+                    reader = PyPDF2.PdfReader(pdf_file)
+                    text = ""
+                    for page in reader.pages:
+                        text += page.extract_text()
+                if not is_text_content(text):
+                    raise ValueError(
+                        f"Extracted content from {link} is not primarily textual."
+                    )
+
+                logging.debug(f"Scraped data from {link} (PDF): {text[:100]}...")
+                web_data.append(edu_model.WebData(link=link, data=text))
+            else:
+                response = requests.get(link)
+                response.raise_for_status()
+
+                soup = BeautifulSoup(response.text, "html.parser")
+
+                for script in soup(
+                    ["script", "style", "header", "footer", "nav", "aside"]
+                ):
+                    script.decompose()
+
+                text = " ".join(re.split(r"[\n\t]+", soup.get_text()))
+                if not is_text_content(text):
+                    raise ValueError(
+                        f"Extracted content from {link} is not primarily textual."
+                    )
+
+                logging.debug(f"Scraped data from {link}: {text[:100]}...")
+                web_data.append(edu_model.WebData(link=link, data=text))
+
+        except Exception as e:
+            logging.error(f"Error scraping {link}: {e}")
+            errors.append(str(e))
+
+    logging.debug(
+        f"Scraping finished with {len(web_data)} successes and {len(errors)} errors."
+    )
+    return edu_model.WebDataCollection(
+        web_data_collection=web_data, web_data_retrival_errors=errors
+    )
 
 
 def clean_and_parse(input_string: str) -> list[dict[str, str]]:

@@ -1,4 +1,5 @@
 import logging
+from math import acos
 from eduadvisor import model as edu_model
 from typing import Callable
 from eduadvisor import tools
@@ -32,11 +33,84 @@ def transition(
             return web_search_agent(state, transition_from, send_state_to_user)
         case (transition_from, edu_model.StateAction.SOURCE_APPROVE):
             return source_approve_agent(state, transition_from, send_state_to_user)
+        case (transition_from, edu_model.StateAction.WEB_SCRAPE):
+            return web_scrape_sites(state, transition_from, send_state_to_user)
+        case (transition_from, edu_model.StateAction.ANSWER_QUESTION):
+            return answer_question(state, transition_from, send_state_to_user)
         case _:
             logging.debug(
                 f"No matching transition found for {previous_action} and {action}"
             )
             return state
+
+
+def answer_question(
+    state: edu_model.ConversationState,
+    previous_action: edu_model.StateAction | None,
+    send_state_to_user: Callable[
+        [edu_model.ConversationState, edu_model.StateAction, str], None
+    ],
+) -> edu_model.ConversationState:
+
+    if state.web_search_results and state.sources and state.questions:
+        send_state_to_user(
+            state,
+            edu_model.StateAction.ANSWER_QUESTION,
+            "Answering the question .. ",
+        )
+        answer = tools.answer_questions(
+            state.web_search_results,
+            state.sources,
+            state.questions,
+            state.web_data_collection,
+        )
+        state = state.immutable_copy_answer(answer)
+        send_state_to_user(
+            state,
+            edu_model.StateAction.ANSWER_QUESTION,
+            (
+                "We are done with all the work. Hope you are happy: "
+                + answer.answer_text
+                + " \nSources: \n"
+                + " \n".join(
+                    state.sources.links if state.sources else ["No sources found"]
+                )
+                if answer
+                else "We failed to answer you. Please retry"
+            ),
+        )
+
+    return state
+
+
+def web_scrape_sites(
+    state: edu_model.ConversationState,
+    previous_action: edu_model.StateAction | None,
+    send_state_to_user: Callable[
+        [edu_model.ConversationState, edu_model.StateAction, str], None
+    ],
+) -> edu_model.ConversationState:
+
+    if state.sources and len(state.sources.links) > 0:
+        logging.debug(
+            f"We will now retrieve and scrape data from the web for the follwing links: {state.sources.links}"
+        )
+        send_state_to_user(
+            state,
+            edu_model.StateAction.WEB_SCRAPE,
+            "Getting data from tha web....",
+        )
+
+        scraped_data = tools.scrape_links(state.sources)
+        state = state.immutable_copy_web_data_collection(scraped_data)
+        return transition(
+            state,
+            previous_action,
+            edu_model.StateAction.ANSWER_QUESTION,
+            send_state_to_user,
+        )
+
+    return state
 
 
 def source_approve_agent(
@@ -57,7 +131,7 @@ def source_approve_agent(
             "Let me do a sanity check on the URLs you've found.",
         )
         sources = tools.evaluate_the_sources(state.web_search_results, state.query)
-        state = state.model_copy(update={"sources": sources}, deep=True)
+        state = state.immutable_copy_sources(sources)
         logging.debug(f"Updated state with sources: {sources}")
 
         if sources and len(sources.links) < 2:
@@ -84,7 +158,12 @@ def source_approve_agent(
                 f"Okay, I guess we can use the links {sources.links} to generate a prompt and create an answer. "
                 + explaination_of_removed_links,
             )
-            return state
+            return transition(
+                state,
+                edu_model.StateAction.SOURCE_APPROVE,
+                edu_model.StateAction.WEB_SCRAPE,
+                send_state_to_user,
+            )
         else:
             send_state_to_user(
                 state,
@@ -119,9 +198,7 @@ def web_search_agent(
                     )
                     return state
                 else:
-                    state = state.model_copy(
-                        update={"web_search_results": search_results}, deep=True
-                    )
+                    state = state.immutable_copy_web_search_results(search_results)
                     logging.debug(
                         f"Updated state with search results: {search_results}"
                     )
@@ -254,13 +331,10 @@ def score_query_agent(
         "Let me assess the quality of your questions.",
     )
     quality_score = tools.quality_check_your_questions(state.questions)
-    state = state.model_copy(
-        update={
-            "questions": state.questions.model_copy(
-                update={"questions_score": quality_score}, deep=True
-            )
-        },
-        deep=True,
+    state = state.immutable_copy_questions(
+        questions=state.questions.immutable_copy_questions_score(
+            questions_score=quality_score
+        )
     )
     logging.debug(f"Updated state with quality score: {quality_score}")
 
@@ -294,9 +368,7 @@ def challenge_agent(
         return state
     else:
         refined_questions = tools.challenge_llm(state.questions)
-        state = state.model_copy(
-            update={"refined_questions": refined_questions}, deep=True
-        )
+        state = state.immutable_copy_refined_questions(refined_questions)
         logging.debug(f"Updated state with refined questions: {refined_questions}")
 
         return transition(
@@ -323,7 +395,7 @@ def query_llm_agent(
 
     if state.questions:
         query = tools.extract_search_query(state.questions, state.query, state.sources)
-        state = state.model_copy(update={"query": query}, deep=True)
+        state = state.immutable_copy_query(query)
         logging.debug(f"Updated state with query: {query}")
 
         return transition(
