@@ -6,6 +6,13 @@
 
 RudeAdvisor is a personal learning project focused on understanding Large Language Models (LLMs), agent patterns, and antipatterns. The primary aim is to explore these concepts with minimal use of frameworks, relying on basic Python dependencies. The project intentionally use alot of  procedural patterns, aiming for a more functional and immutable approach to code design. 
 
+# Research Roadmap Prorities
+
+1. Code generation agents with LSP support
+2. Testing without frameworks. Is it possible? 
+3. Security testing LLM based agents. Can they leak?
+4. Experiment with decision agents using non LLM
+
 ## Key Principles
 1. **Frameworks vs Libraries**: Leverage as few frameworks as possible to maintain simplicity and clarity (or expose complexities that is handled by frameworks)  
 2. **Functional vs. Object oriented approach**: Few state mutations, adopting immutable data structures and pure functions whenever possible. We are in Python so we will never be pure FF..   
