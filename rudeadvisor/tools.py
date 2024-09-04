@@ -3,7 +3,7 @@ from pydantic import ValidationError
 from bs4 import BeautifulSoup
 from io import BytesIO
 from rudeadvisor import model as edu_model
-import PyPDF2
+import pypdf
 import openai
 import re
 import logging
@@ -104,7 +104,7 @@ def scrape_links(source: edu_model.Sources) -> edu_model.WebDataCollection:
                 response.raise_for_status()
 
                 with BytesIO(response.content) as pdf_file:
-                    reader = PyPDF2.PdfReader(pdf_file)
+                    reader = pypdf.PdfReader(pdf_file)
                     text = ""
                     for page in reader.pages:
                         text += page.extract_text()
