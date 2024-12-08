@@ -30,16 +30,21 @@ title: Rude Advisor
 stateDiagram-v2
     state "User" as User
     state "Coordinate" as Coordinate
-    state "Challenge" as Challenge
+    state "ChallengeClassifier" as Challenge
     state "WebSearchExecute" as WebSearch
     state "WebQueryGenerate" as WebQueryLLM
     state "ScoreQuery" as ScoreQuery
     state "SourceValidate" as SourceValidate
+    state "CodeGenerate" as CodeGenerate
+    state "LspCheck" as LspCheck
+    state "EngineerChallenge" as CodeChallenge
+    state "WildCardAnswerChallenge" as WildCardAnswerChallenge
+    state "Engineer" as Engineer
+    state "WorkspaceAgent" as WorkspaceAgent
 
     User --> Coordinate: Question
     Coordinate --> Challenge: Question
     Coordinate --> User: SuggestedQuestions
-    Challenge --> Coordinate: SuggestedQuestions
     Coordinate --> WebQueryLLM: Questions
     WebQueryLLM --> WebSearch: Query
     WebSearch --> ScoreQuery: WebData
@@ -50,9 +55,19 @@ stateDiagram-v2
     WebScrape --> AnswerMachine: WebData
     AnswerMachine --> Coordinate: Answer
     Coordinate --> User: Answer
-
-```
-
+    
+    CodeGenerate --> LspCheck: Code 
+    Challenge --> CodeChallenge: EngineerQuestion
+    Challenge --> WildCardAnswerChallenge: Question
+    WildCardAnswerChallenge --> Challenge: SuggestedQuestions
+    CodeChallenge --> Challenge: SuggestedQuestions
+    Challenge --> Coordinate: SuggestedQuestions
+    Coordinate --> Engineer: EngineerQuestion
+    Engineer --> Coordinate: EngineerActionAnswer
+    Engineer --> CodeGenerate: CodeQuestion
+    LspCheck --> CodeGenerate: Code
+    Engineer --> WorkspaceAgent: WorkspaceQuestion
+    WorkspaceAgent --> Engineer: WorkspaceAnswer
 ## Features
 
 - **Web Search:** Uses DuckDuckGo for searching the web and retrieving relevant results based on user queries.

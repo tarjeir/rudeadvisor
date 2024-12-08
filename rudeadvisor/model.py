@@ -15,6 +15,8 @@ class StateAction(str, Enum):
     SOURCE_APPROVE = "SourceApprove"
     WEB_SCRAPE = "WebScrape"
     ANSWER_QUESTION = "AnswerQuestion"
+    GENERATE_CODE = "GenerateCode"
+    LSP_CHECK_CODE = "LspCheckCode"
 
 
 class MessageType(str, Enum):

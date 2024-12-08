@@ -14,7 +14,13 @@ def transition(
     ],
 ) -> edu_model.ConversationState:
     """
-    Process the state transition based on the current action.
+    Transitions the conversation state based on the given actions and current state.
+
+    :param state: Current conversation state.
+    :param previous_action: Previous state action taken.
+    :param action: Next state action to be taken.
+    :param send_state_to_user: Function to send the state to the user.
+    :return: Updated conversation state.
     """
     logging.debug(
         f"Transitioning from {previous_action} to {action} with state: {state}"
@@ -37,11 +43,23 @@ def transition(
             return web_scrape_sites(state, transition_from, send_state_to_user)
         case (transition_from, edu_model.StateAction.ANSWER_QUESTION):
             return answer_question(state, transition_from, send_state_to_user)
+        case (transition_from, edu_model.StateAction.GENERATE_CODE):
+            return generate_code(state, transition_from, send_state_to_user)
         case _:
             logging.debug(
                 f"No matching transition found for {previous_action} and {action}"
             )
             return state
+
+
+def generate_code(
+    state: edu_model.ConversationState,
+    previous_action: edu_model.StateAction | None,
+    send_state_to_user: Callable[
+        [edu_model.ConversationState, edu_model.StateAction, str], None
+    ],
+) -> edu_model.ConversationState:
+    pass
 
 
 def answer_question(
@@ -51,7 +69,14 @@ def answer_question(
         [edu_model.ConversationState, edu_model.StateAction, str], None
     ],
 ) -> edu_model.ConversationState:
+    """
+    Processes the answer to the question based on current state and action.
 
+    :param state: Current conversation state.
+    :param previous_action: Previous state action taken.
+    :param send_state_to_user: Function to send the state to the user.
+    :return: Updated conversation state.
+    """
     if state.web_search_results and state.sources and state.questions:
         send_state_to_user(
             state,
@@ -79,7 +104,6 @@ def answer_question(
                 else "We failed to answer you. Please retry"
             ),
         )
-
     return state
 
 
@@ -90,7 +114,14 @@ def web_scrape_sites(
         [edu_model.ConversationState, edu_model.StateAction, str], None
     ],
 ) -> edu_model.ConversationState:
+    """
+    Retrieves and scrapes data from the web based on current state and action.
 
+    :param state: Current conversation state.
+    :param previous_action: Previous state action taken.
+    :param send_state_to_user: Function to send the state to the user.
+    :return: Updated conversation state.
+    """
     if state.sources and len(state.sources.links) > 0:
         logging.debug(
             f"We will now retrieve and scrape data from the web for the follwing links: {state.sources.links}"
@@ -109,7 +140,6 @@ def web_scrape_sites(
             edu_model.StateAction.ANSWER_QUESTION,
             send_state_to_user,
         )
-
     return state
 
 
@@ -120,6 +150,14 @@ def source_approve_agent(
         [edu_model.ConversationState, edu_model.StateAction, str], None
     ],
 ) -> edu_model.ConversationState:
+    """
+    Processes source approval based on current state and action.
+
+    :param state: Current conversation state.
+    :param previous_action: Previous state action taken.
+    :param send_state_to_user: Function to send the state to the user.
+    :return: Updated conversation state.
+    """
     logging.debug(
         f"Processing source approval with state: {state} and previous action: {previous_action}"
     )
@@ -171,7 +209,6 @@ def source_approve_agent(
                 "The links are not good enough.",
             )
             return state
-
     return state
 
 
@@ -182,6 +219,14 @@ def web_search_agent(
         [edu_model.ConversationState, edu_model.StateAction, str], None
     ],
 ) -> edu_model.ConversationState:
+    """
+    Processes web search based on current state and previous action.
+
+    :param state: Current conversation state.
+    :param previous_action: Previous state action taken.
+    :param send_state_to_user: Function to send the state to the user.
+    :return: Updated conversation state.
+    """
     logging.debug(
         f"Processing web search with state: {state} and previous action: {previous_action}"
     )
@@ -214,7 +259,6 @@ def web_search_agent(
                         edu_model.StateAction.SOURCE_APPROVE,
                         send_state_to_user,
                     )
-
     return state
 
 
@@ -226,7 +270,12 @@ def coordination_agent(
     ],
 ) -> edu_model.ConversationState:
     """
-    Coordinate the state based on the previous action.
+    Coordinates the state based on the previous action.
+
+    :param state: Current conversation state.
+    :param previous_action: Previous state action taken.
+    :param send_state_to_user: Function to send the state to the user.
+    :return: Updated conversation state.
     """
     logging.debug(
         f"Coordinating with state: {state} and previous action: {previous_action}"
@@ -303,7 +352,6 @@ def coordination_agent(
                     "Failed to refine questions, please retry",
                 )
             return state
-
     return state
 
 
@@ -315,7 +363,12 @@ def score_query_agent(
     ],
 ) -> edu_model.ConversationState:
     """
-    Score the query based on the state and previous action.
+    Scores the query based on the state and previous action.
+
+    :param state: Current conversation state.
+    :param previous_action: Previous state action taken.
+    :param send_state_to_user: Function to send the state to the user.
+    :return: Updated conversation state.
     """
     logging.debug(
         f"Scoring query with state: {state} and previous action: {previous_action}"
@@ -354,7 +407,12 @@ def challenge_agent(
     ],
 ) -> edu_model.ConversationState:
     """
-    Challenge the current state based on the previous action.
+    Challenges the current state based on the previous action.
+
+    :param state: Current conversation state.
+    :param previous_action: Previous state action taken.
+    :param send_state_to_user: Function to send the state to the user.
+    :return: Updated conversation state.
     """
     logging.debug(
         f"Challenging with state: {state} and previous action: {previous_action}"
@@ -387,7 +445,12 @@ def query_llm_agent(
     ],
 ) -> edu_model.ConversationState:
     """
-    Query the language model based on the current and previous action.
+    Queries the language model based on the current and previous action.
+
+    :param state: Current conversation state.
+    :param previous_action: Previous state action taken.
+    :param send_state_to_user: Function to send the state to the user.
+    :return: Updated conversation state.
     """
     logging.debug(
         f"Querying LLM with state: {state} and previous action: {previous_action}"

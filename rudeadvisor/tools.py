@@ -13,6 +13,11 @@ import requests
 openai_client = openai.OpenAI()
 
 
+def generate_code(questions: edu_model.Questions) -> None:
+
+    return None
+
+
 def answer_questions(
     web_search_results: edu_model.WebSearchResults,
     sources: edu_model.Sources,
@@ -169,7 +174,7 @@ def query_duckduckgo(
     logging.debug(f"Querying DuckDuckGo for: {query.query_text}")
     try:
         ddgs = DDGS()
-        results = ddgs.text(query.query_text, max_results=10)
+        results = ddgs.text(query.query_text, backend="html", max_results=10)
         web_result_list = [
             edu_model.WebSearchResult(
                 title=result["title"], link=result["href"], snippet=result["body"]
@@ -302,9 +307,22 @@ def challenge_llm(question: edu_model.Questions) -> edu_model.RefinedQuestions |
         {
             "role": "system",
             "content": """I am a question challenger.
-        My job is to challenge your questions and generate more questions based on your initial question. 
+        My job is to challenge your questions and generate some alternative(s) based on your initial question. 
         There are some rules I will endforce:
-        Always generate minimum 3 refined questions at maximum 6
+        You need to make an question_message description that adds some context to the suggestion(s)
+        You have 3 question types you can feedback to the user. The user has to take a decision based on the types what they should focus on next
+        Here are the different properties:
+
+The WorkflowObject class represents a base workflow object. It has the following properties:
+- question_message: str, with no specific restrictions.
+    - Example: A simple string describing the workflow's message.
+
+The MultipleSelectQuestion class represents a multiple-choice question in a workflow. If you think the user have two or more question suggestions to follow up you should use this object.
+
+The SingleChoiceQuestion class represents a single-choice question in a workflow. Use this if you only think the user should choose one question
+
+The OrderedQuestions class represents a question with ordered alternatives in a workflow. Use this if you think the user have two or more question suggestions and when you think there is a priority for the user to consider before answering.
+
         I will try to put you off and add one relevant but bogus question, but I can not guarantee that I will
         Create a comment to the original question. You are allowed to be a bit 'mansplaining'when you comment the question. The challenger is not the nicest bot out there.
         Can you make sure that at least one of the suggestion contains the form (essay, discussion, short text) or similar. 
@@ -319,7 +337,7 @@ def challenge_llm(question: edu_model.Questions) -> edu_model.RefinedQuestions |
     completions = openai_client.beta.chat.completions.parse(
         model="gpt-4o-mini",
         messages=messages,
-        response_format=edu_model.RefinedQuestions,
+        response_format=edu_model.Workflow,
     )
 
     if len(completions.choices) == 0:
