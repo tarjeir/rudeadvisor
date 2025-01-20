@@ -30,16 +30,19 @@ title: Rude Advisor
 stateDiagram-v2
     state "User" as User
     state "Coordinate" as Coordinate
-    state "Challenge" as Challenge
+    state "ChallengeClassifier" as Challenge
     state "WebSearchExecute" as WebSearch
     state "WebQueryGenerate" as WebQueryLLM
     state "ScoreQuery" as ScoreQuery
     state "SourceValidate" as SourceValidate
+    state "RecommendChallenge" as RecommendChallenge
+    state "WildCardAnswerChallenge" as WildCardAnswerChallenge
+    state "NewsRecommender" as NewsRecommender
+    
 
     User --> Coordinate: Question
     Coordinate --> Challenge: Question
     Coordinate --> User: SuggestedQuestions
-    Challenge --> Coordinate: SuggestedQuestions
     Coordinate --> WebQueryLLM: Questions
     WebQueryLLM --> WebSearch: Query
     WebSearch --> ScoreQuery: WebData
@@ -50,6 +53,15 @@ stateDiagram-v2
     WebScrape --> AnswerMachine: WebData
     AnswerMachine --> Coordinate: Answer
     Coordinate --> User: Answer
+    
+
+    Challenge --> RecommendChallenge: NewsRecommendationQuery
+    RecommendChallenge --> Challenge: SuggestedQuestions
+    Challenge --> WildCardAnswerChallenge: Question
+    WildCardAnswerChallenge --> Challenge: SuggestedQuestions
+    Challenge --> Coordinate: SuggestedQuestions
+    Coordinate --> NewsRecommender: NewsRecommendationQuery
+    NewsRecommender --> Coordinate: Answer
 
 ```
 
